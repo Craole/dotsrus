@@ -161,7 +161,7 @@ project_info() {
 		app_available bat && alias cat='bat --style=plain'
 
 		app_available cargo && alias A='cargo add'
-		app_available cargo && alias B='cargo build --release'
+		alias B='project_build'
 		app_available cargo && alias C='project_clean'
 		app_available dust && alias D='cargo remove'
 		app_available hx && alias E='hx'
@@ -256,13 +256,28 @@ project_init() {
 		cargo init --name "$PRJ_NAME"
 	fi
 
-	[ -f "$PRJ_ROOT/.cargo/config.toml" ] || {
+	config_toml_lnk="$PRJ_ROOT/.cargo/config.toml"
+	config_toml_src="$PRJ_CONF/cargo.toml"
+	if
+		[ ! -f "$config_toml_lnk" ] &&
+			[ ! -L "$config_toml_lnk" ]
+	then
 		mkdir --parents "$PRJ_ROOT/.cargo"
 		ln --symbolic \
-			"$PRJ_CONF/cargo.toml" \
-			"$PRJ_ROOT/.cargo/config.toml"
-	}
+			"$config_toml_src" \
+			"$config_toml_lnk"
+	fi
 
+	project_build
+}
+
+project_build() {
+	app_available cargo || {
+		print_status \
+			--error "Build failed" \
+			--dependency "cargo"
+		return 127
+	}
 	cargo build --release
 	cargo install --path "$PRJ_ROOT"
 }
