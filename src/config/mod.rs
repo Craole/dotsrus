@@ -1,3 +1,4 @@
-mod default;
 
-pub use default::{Config, PathEntry, LastCheck};
+mod modules;
+
+pub use modules::{config::Config, entry, exclude};

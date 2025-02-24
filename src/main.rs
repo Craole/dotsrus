@@ -1,5 +1,6 @@
 mod cli;
 mod config;
+mod utilities;
 pub use config::Config;
 
 fn main() {

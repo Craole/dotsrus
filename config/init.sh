@@ -264,6 +264,7 @@ project_init() {
 	}
 
 	cargo build --release
+	cargo install --path "$PRJ_ROOT"
 }
 
 project_update() {

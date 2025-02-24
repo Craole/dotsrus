@@ -1,82 +1,22 @@
+use super::entry;
+use super::exclude;
 use directories::{BaseDirs, ProjectDirs};
 use ignore::WalkBuilder;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
     error::Error,
     fs::{self, File},
     io::{self, Write},
     path::{Path, PathBuf, MAIN_SEPARATOR, MAIN_SEPARATOR_STR},
-    time::SystemTime,
 };
 
-// #[derive(Debug, Serialize, Deserialize, Default)]
-// pub struct Config {
-//     pub path_entries: Vec<PathEntry>,
-//     pub config_path: PathBuf,
-//     #[serde(default = "default_excludes")]
-//     pub default_excludes: Vec<String>,
-// }
-
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct PathEntry {
-//     pub path: PathBuf,
-//     pub prepend: bool,
-//     pub exclude_patterns: Vec<String>,
-//     pub max_depth: u8,
-//     #[serde(default)]
-//     pub discovered_paths: HashMap<PathBuf, exclude::Check>,
-// }
-
-// #[derive(Debug, Serialize, Deserialize, Clone)]
-// pub enum exclude::Reason {
-//     ExcludePattern(String), // Matched an exclude pattern
-//     GitIgnored,             // Matched gitignore rules
-//     DefaultExclude(String), // Matched default excludes
-//     NotDirectory,           // Path exists but isn't a directory
-//     DoesNotExist,           // Path doesn't exist
-//     PermissionDenied,       // No permission to access
-//     Other(String),          // Other reasons
-// }
-
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct exclude::Check {
-//     pub timestamp: SystemTime,
-//     pub valid: bool,
-//     #[serde(skip_serializing_if = "Option::is_none")]
-//     pub invalid_reason: Option<exclude::Reason>,
-// }
-
-// impl exclude::Check {
-//     pub fn new_valid() -> Self {
-//         Self {
-//             timestamp: SystemTime::now(),
-//             valid: true,
-//             invalid_reason: None,
-//         }
-//     }
-
-//     pub fn new_invalid(reason: exclude::Reason) -> Self {
-//         Self {
-//             timestamp: SystemTime::now(),
-//             valid: false,
-//             invalid_reason: Some(reason),
-//         }
-//     }
-// }
-
-// fn default_excludes() -> Vec<String> {
-//     vec![
-//         "temp".to_string(),
-//         "tmp".to_string(),
-//         "*review*".to_string(),
-//         "archive".to_string(),
-//         "backup".to_string(),
-//         "node_modules".to_string(),
-//         "target".to_string(),
-//         ".git".to_string(),
-//     ]
-// }
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct Config {
+    pub path_entries: Vec<entry::Path>,
+    pub config_path: PathBuf,
+    #[serde(default = "exclude::default")]
+    pub default_excludes: Vec<String>,
+}
 
 impl Config {
     pub fn new(custom_config_path: Option<&Path>) -> io::Result<Self> {
@@ -96,7 +36,7 @@ impl Config {
             Ok(Config {
                 path_entries: Vec::new(),
                 config_path,
-                default_excludes: default_excludes(),
+                default_excludes: exclude::default().into_iter().map(String::from).collect(),
             })
         } else {
             let content = fs::read_to_string(&config_path)?;
@@ -112,6 +52,7 @@ impl Config {
         self.update_shell_profile()?;
         Ok(())
     }
+
     fn update_shell_profile(&self) -> Result<(), Box<dyn Error>> {
         let base_dir = BaseDirs::new().expect("Failed to get base directories");
         let home_dir = base_dir.home_dir().to_path_buf();
