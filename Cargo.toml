@@ -1,9 +1,17 @@
 [package]
-name = "dots"
+name = "dotsrus"
 version = "0.1.0"
 edition = "2021"
-authors = ["Craig 'Craole' Cole"]
-description = "dotDots Environment Management Tool"
+authors = ["Craig 'Craole' Cole <ccutils@craole.cc>"]
+description = "Dots 'R' Us - Environment Management Tool"
+repository = "https://github.com/Craole/dotsrus"
+license = "LICENSE"
+keywords = ["dotfiles", "environment", "path", "variables"]
+categories = ["command-line-utilities", "config", "filesystem"]
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_variables = "allow"
 
 [dependencies]
 anyhow = "1.0.96"
