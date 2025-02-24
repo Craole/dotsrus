@@ -1,0 +1,16 @@
+# Cargo config file.
+# See: https://doc.rust-lang.org/cargo/reference/config.html
+
+#| Aliases
+[alias]
+rr = "run --release"
+rq = "run --quiet"
+wq = "watch --quiet --clear --exec rr"
+
+#| Terminal Config
+[term]
+quiet = false
+
+#| Environment Variables
+[env]
+BROWSER = "firefox"

@@ -1,0 +1,76 @@
+[global]
+excludes = [
+  ".git/*",
+  ".direnv/*",
+  "target/*",
+  "result/*",
+  "*.lock",
+  "**/*justfile",
+]
+
+[formatter.mdformat]
+command = "mdformat"
+excludes = []
+includes = ["*.md", "**/*LICENSE", "**/*README"]
+options = []
+priority = 0
+
+[formatter.nixfmt]
+command = "nixfmt"
+excludes = []
+includes = ["*.nix"]
+options = []
+
+[formatter.prettier]
+command = "prettier"
+excludes = []
+includes = [
+  "*.cjs",
+  "*.css",
+  "*.html",
+  "*.js",
+  "*.json",
+  "*.json5",
+  "*.jsx",
+  "*.md",
+  "*.mdx",
+  "*.mjs",
+  "*.scss",
+  "*.ts",
+  "*.tsx",
+  "*.vue",
+  "*.yaml",
+  "*.yml",
+]
+options = ["--write"]
+priority = 1
+
+[formatter.rustfmt]
+command = "rustfmt"
+excludes = []
+includes = ["*.rs"]
+options = ["--edition", "2021"]
+
+[formatter.shellcheck]
+command = "shellcheck"
+includes = ["*.sh", ".env*"]
+priority = 0
+
+[formatter.shfmt]
+command = "shfmt"
+options = ["-s", "-w"]
+includes = ["*.sh", ".gitignore", ".env*"]
+priority = 1
+
+[formatter.taplo]
+command = "taplo"
+excludes = []
+includes = ["*.toml", "rust-toolchain", "toolchain"]
+options = ["format"]
+
+[formatter.yamlfmt]
+command = "yamlfmt"
+excludes = []
+includes = ["*.yaml", "*.yml"]
+options = []
+priority = 0

@@ -1,0 +1,58 @@
+# Nixed: Rust Development Environment
+
+This is the default [Rust](https://github.com/rust-lang/rust) template in [Nixed](https://github.com/Craole/Nixed) series of templates. It's a good starting point for new Rust projects with several utilities made available that aim to enhance developer experience.
+
+## Installation
+
+This template is designed to be deployed via nix flakes but is also available as a standalone package but with limited features. You can install it via:
+
+> With nix flakes
+
+```shell
+  #| Define the particulars of the project
+  template_name="rust"
+  project_name=""
+
+  #| Deploy the template
+  nix flake new --template github:Craole/nixed#cc-${template_name} ${project_name}
+
+  #| Enter the project directory
+  cd "${project_name:-$template_name}"
+
+  # Initialize the project for development
+  nix develop
+
+```
+
+> Without nix flakes
+
+```shell
+  #| Define the particulars of the project
+  template_name="rust"
+  project_name=""
+
+  #| Create and enter the project directory
+  mkdir "${project_name:-$template_name}"
+  cd "${project_name:-$template_name}"
+
+  # Initialize the project as a git repository
+  git init
+
+  # Add the nixed repository as a remote
+  git remote add origin https://github.com/Craole/nixed.git
+
+  # Import the desired template
+  git config core.sparseCheckout true
+  echo "templates/${template_name}/*" > .git/info/sparse-checkout
+  git pull origin master
+
+  # Move the template to the root of the project
+  mkdir --parents temp
+  mv templates/* temp/
+  mv temp/* .
+  rm --recursive --force templates
+  rmdir temp
+
+   # Initialize the project for development
+  . /.config/init.sh
+```
