@@ -668,6 +668,15 @@ initialize_functions() {
 
 		eval "$helix_cmd" "${helix_args:-$helix_root}"
 	}
+
+		treefmt_wrapper() {
+		check_dependencies treefmt || return $?
+		treefmt \
+			--config-file "$PRJ_CONF/treefmt.toml" \
+			--ci \
+			--tree-root "$PRJ_ROOT"
+		# --allow-missing-formatter \
+	}
 }
 
 project_info() {
