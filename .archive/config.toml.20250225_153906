@@ -1,6 +1,3 @@
-# Cargo config file.
-# See: https://doc.rust-lang.org/cargo/reference/config.html
-
 #| Aliases
 [alias]
 rr = "run --release"

@@ -1,227 +1,258 @@
 #!/bin/sh
 
 main() {
-	#@ Uninitialized variables and exit if any occurs
-	set -eu
-
 	#@ Initialize the script
-	set_defaults
-	initialize_output
-	initialize_utilities
+	initialize_defaults
+	initialize_output_mode
+	initialize_functions
 
 	#@ Initialize the project
-	project_info || return $?
-	project_init || return $?
+	project_info || return "$?"
+	project_init || return "$?"
 }
 
-set_defaults() {
-	debug=0
-	ICON_MODE=3
+initialize_defaults() {
+	verbosity="info"  #? 0: quiet, 1: error, 2: warn, 3: info, 4: debug, 5: trace
+	color_mode="auto" #? 0: none, 1|auto: ansi/tput
+	icon_mode="auto"  #? 0: none, 1: ascii, 2: unicode, 3: emoji
 }
 
-initialize_output() {
-	TERM_LEVEL=0
-	#@ Check basic terminal functionality
-	if [ -t 1 ] && [ -z "${NO_COLOR+x}" ] && [ "$TERM" != "linux" ]; then
-		TERM_LEVEL=1
+initialize_output_mode() {
+	detect_terminal_capabilities() {
+		#@ Define helper to check for printable characters
+		can_print() {
+			LC_ALL=C
+			grep -q "^[[:print:]]*$" 2>/dev/null
+		}
 
-		#@ Check Unicode support
-		if printf '\u2714' | grep -q "^[[:print:]]*$" 2>/dev/null; then
-			TERM_LEVEL=2
+		#@ Check terminal capabilities
+		TERM_LEVEL=0
+		if printf '%s' '\U1F7E2' | can_print; then
+			TERM_LEVEL=3 #? Full Unicode/Emoji
+		elif printf '%s' '\u2714' | can_print; then
+			TERM_LEVEL=2 #? Basic Unicode
+		elif printf '%s' 'X' | can_print; then
+			TERM_LEVEL=1 #? ASCII only
+		fi
 
-			#@ Check full Unicode/Emoji support
-			if printf '\U1F7E2' | grep -q "^[[:print:]]*$" 2>/dev/null; then
-				TERM_LEVEL=3
+		#@ Check terminal color support
+		TERM_COLOR_SUPPORTED=0
+		case "${TERM:-}" in
+		*-m | dumb) ;;
+		*)
+			if [ -z "${NO_COLOR+x}" ] && [ -t 1 ]; then
+				TERM_COLOR_SUPPORTED=1
+			fi
+			;;
+		esac
+
+		#@ Check for tput support
+		TERM_COLORS=8
+		if command -v tput >/dev/null 2>&1; then
+			if tput init >/dev/null 2>&1; then
+				CMD_TPUT="$(command -v tput)"
+				TERM_COLORS="$(tput colors 2>/dev/null || printf '%s' 8)"
 			fi
 		fi
-	fi
-	[ ${DEBUG:-0} -eq 1 2>/dev/null ] && printf "Terminal Level: %s\n" "$TERM_LEVEL"
 
-	#@ Set Formatting
-	if [ "${TERM_LEVEL:-0}" -gt 0 ]; then
-
-		#@ Cache ANSI fallbacks
-		FMT_RED='\033[31m'
-		FMT_GREEN='\033[32m'
-		FMT_YELLOW='\033[33m'
-		FMT_BLUE='\033[34m'
-		FMT_PURPLE='\033[35m'
-		FMT_CYAN='\033[36m'
-		FMT_WHITE='\033[37m'
-		FMT_BOLD='\033[1m'
-		FMT_ITALIC='\033[3m'
-		FMT_UNDERLINE='\033[4m'
-		FMT_RESET='\033[0m'
-
-		#@ Cache tput values, if available
-		if
-			command -v tput >/dev/null 2>&1 &&
-				tput init >/dev/null 2>&1
-		then
-			FMT_RED=$(tput setaf 1)
-			FMT_GREEN=$(tput setaf 2)
-			FMT_YELLOW=$(tput setaf 3)
-			FMT_BLUE=$(tput setaf 4)
-			FMT_PURPLE=$(tput setaf 5)
-			FMT_CYAN=$(tput setaf 6)
-			FMT_WHITE=$(tput setaf 7)
-			FMT_BOLD=$(tput bold)
-			FMT_ITALIC=$(tput sitm)
-			FMT_UNDERLINE=$(tput smul)
-			FMT_RESET=$(tput sgr0)
-		fi
-	else
-		#@ Set Blank so that it doesn't print or throw errors
-		FMT_RED=''
-		FMT_GREEN=''
-		FMT_YELLOW=''
-		FMT_BLUE=''
-		FMT_PURPLE=''
-		FMT_CYAN=''
-		FMT_WHITE=''
-		FMT_BOLD=''
-		FMT_ITALIC=''
-		FMT_UNDERLINE=''
-		FMT_RESET=''
-	fi
-
-	#@ Composite styles
-	FMT_SUCCESS="${FMT_RESET}${FMT_BOLD}${FMT_GREEN}"
-	FMT_FAILURE="${FMT_RESET}${FMT_BOLD}${FMT_RED}"
-	FMT_INFO="${FMT_RESET}${FMT_BOLD}${FMT_BLUE}"
-	FMT_WARNING="${FMT_RESET}${FMT_BOLD}${FMT_YELLOW}"
-	FMT_DEBUG="${FMT_RESET}${FMT_BOLD}${FMT_PURPLE}"
-	FMT_HIGHLIGHT="${FMT_RESET}${FMT_BOLD}${FMT_UNDERLINE}"
-	FMT_EMPHASIS="${FMT_RESET}${FMT_BOLD}${FMT_ITALIC}"
-
-	#@ Export all FMT_ variables
-	export FMT_RED FMT_GREEN FMT_YELLOW FMT_BLUE FMT_PURPLE FMT_CYAN FMT_WHITE
-	export FMT_BOLD FMT_ITALIC FMT_UNDERLINE FMT_RESET
-	export FMT_SUCCESS FMT_FAILURE FMT_INFO FMT_WARNING FMT_DEBUG FMT_HIGHLIGHT FMT_EMPHASIS
-
-	#@ Set icons based on terminal capabilities and user preference
-	ICON_MODE="${ICON_MODE:-$TERM_LEVEL}" # Default to TERM_LEVEL if not set
-
-	#@ Use lower value between ICON_MODE and TERM_LEVEL
-	[ "$ICON_MODE" -gt "$TERM_LEVEL" ] && ICON_MODE=$TERM_LEVEL
-
-	#@ Set default icons
-	case ${ICON_MODE:-TERM_LEVEL} in
-	3) #| Full Unicode/Emoji
-		ICON_SUCCESS="🟢"
-		ICON_FAILURE="🔴"
-		ICON_INFORMATION="ℹ️"
-		ICON_WARNING="💡"
-		ICON_DEBUG="🔍"
-		ICON_ERROR="❌"
-		ICON_PADDING=" "
-		;;
-	2) #| ANSI/Unicode
-		ICON_SUCCESS="[✓]"
-		ICON_FAILURE="[✗]"
-		ICON_INFORMATION="[i]"
-		ICON_WARNING="[!]"
-		ICON_DEBUG="[◆]"
-		ICON_ERROR="[×]"
-		ICON_PADDING=" "
-		;;
-	1) #| Basic ASCII
-		ICON_SUCCESS="[+]"
-		ICON_FAILURE="[-]"
-		ICON_INFORMATION="[i]"
-		ICON_WARNING="[!]"
-		ICON_DEBUG="[?]"
-		ICON_ERROR="[x]"
-		ICON_PADDING=" "
-		;;
-	0) #| No icons
-		ICON_SUCCESS=""
-		ICON_FAILURE=""
-		ICON_INFORMATION=""
-		ICON_WARNING=""
-		ICON_DEBUG=""
-		ICON_ERROR=""
-		ICON_PADDING=""
-		;;
-	esac
-
-	#@ Color Icons, if available
-	ICON_SUCCESS="${ICON_PADDING}${FMT_GREEN}${ICON_SUCCESS}${FMT_RESET}${ICON_PADDING}"
-	ICON_FAILURE="${ICON_PADDING}${FMT_RED}${ICON_FAILURE}${FMT_RESET}${ICON_PADDING}"
-	ICON_INFORMATION="${ICON_PADDING}${FMT_BLUE}${ICON_INFORMATION}${FMT_RESET}${ICON_PADDING}"
-	ICON_WARNING="${ICON_PADDING}${FMT_YELLOW}${ICON_WARNING}${FMT_RESET}${ICON_PADDING}"
-	ICON_DEBUG="${ICON_PADDING}${FMT_PURPLE}${ICON_DEBUG}${FMT_RESET}${ICON_PADDING}"
-	ICON_ERROR="${ICON_PADDING}${FMT_RED}${ICON_ERROR}${FMT_RESET}${ICON_PADDING}"
-
-	#@ Export all ICON_ variables
-	export ICON_SUCCESS ICON_FAILURE ICON_INFORMATION ICON_WARNING ICON_DEBUG ICON_ERROR ICON_PADDING
-
-	[ ${DEBUG:-0} -eq 1 2>/dev/null ] && {
-		printf "%s: %s\n" "ICON_SUCCESS" "$ICON_SUCCESS"
-		printf "%s: %s\n" "ICON_FAILURE" "$ICON_FAILURE"
-		printf "%s: %s\n" "ICON_INFORMATION" "$ICON_INFORMATION"
-		printf "%s: %s\n" "ICON_WARNING" "$ICON_WARNING"
-		printf "%s: %s\n" "ICON_DEBUG" "$ICON_DEBUG"
-		printf "%s: %s\n" "ICON_ERROR" "$ICON_ERROR"
+		#@ Set terminal level globally
+		export TERM_LEVEL TERM_COLORS TERM_COLOR_SUPPORTED CMD_TPUT
 	}
 
-	# pout_status() {
-	# 	#DOC Print the status of an operation with optional icons and messages.
-	# 	#DOC
-	# 	#DOC This function accepts the following options:
-	# 	#DOC   --success   : Display a success icon.
-	# 	#DOC   --failure   : Display a failure icon.
-	# 	#DOC   --app       : Specify the application name to display.
-	# 	#DOC   --dependency: Specify a missing dependency to display an error.
-	# 	#DOC   --error     : Specify an error message to display.
-	# 	#DOC
-	# 	#DOC Icons and messages are printed with formatting based on the terminal's capabilities.
-	# 	#DOC If provided, the application name, missing dependency, or error message is printed.
-	# 	#DOC The function ensures that all temporary variables are unset after execution.
+	set_verbosity_level() {
+		#@ Define verbosity levels
+		VERBOSITY_LEVEL_QUIET=0
+		VERBOSITY_LEVEL_ERROR=1
+		VERBOSITY_LEVEL_WARN=2
+		VERBOSITY_LEVEL_INFO=3
+		VERBOSITY_LEVEL_DEBUG=4
+		VERBOSITY_LEVEL_TRACE=5
 
-	# 	#@ Initialize variables
-	# 	status_of="" val=""
+		#@ Set verbosity based on user preference or default
+		case "$verbosity" in
+		'' | 0 | off | false | quiet) VERBOSITY_LEVEL=$VERBOSITY_LEVEL_QUIET ;;
+		1 | on | true | error) VERBOSITY_LEVEL=$VERBOSITY_LEVEL_ERROR ;;
+		2 | warn) VERBOSITY_LEVEL=$VERBOSITY_LEVEL_WARN ;;
+		3 | info) VERBOSITY_LEVEL=$VERBOSITY_LEVEL_INFO ;;
+		4 | debug) VERBOSITY_LEVEL=$VERBOSITY_LEVEL_DEBUG ;;
+		5 | trace) VERBOSITY_LEVEL=$VERBOSITY_LEVEL_TRACE ;;
+		*)
+			if [ "$verbosity" -gt "$VERBOSITY_LEVEL_TRACE" ] >/dev/null 2>&1; then
+				VERBOSITY_LEVEL="$VERBOSITY_LEVEL_TRACE"
+			elif [ "$verbosity" -lt "$VERBOSITY_LEVEL_QUIET" ] >/dev/null 2>&1; then
+				VERBOSITY_LEVEL="$VERBOSITY_LEVEL_QUIET"
+			else
+				VERBOSITY_LEVEL="$VERBOSITY_LEVEL_INFO"
+			fi
+			;;
+		esac
 
-	# 	#@ Parse arguments
-	# 	while [ "$#" -gt 0 ]; do
-	# 		case "$1" in
-	# 		--success) icon="$ICON_SUCCESS" ;;
-	# 		--failure) icon="$ICON_FAILURE" ;;
-	# 		--type) [ "$2" ] && status_of="$2" && shift ;;
-	# 		--app) status_of="app" ;;
-	# 		--dependency) status_of="dep" ;;
-	# 		--error) status_of="err" ;;
-	# 		*) val=$1 ;;
-	# 		esac
-	# 		shift
-	# 	done
+		#@ Set verbosity levels globally
+		export VERBOSITY_LEVEL VERBOSITY_LEVEL_QUIET VERBOSITY_LEVEL_ERROR VERBOSITY_LEVEL_WARN VERBOSITY_LEVEL_INFO VERBOSITY_LEVEL_DEBUG VERBOSITY_LEVEL_TRACE
+	}
 
-	# 	#@ Print the status
-	# 	case "$status_of" in
-	# 	app)
-	# 		# Check if the CMD variable for this app exists and is non-empty
-	# 		eval "cmd_path=\$CMD_$(printf "%s" "$val" | tr '[:lower:]' '[:upper:]')"
-	# 		if [ -n "${cmd_path-}" ]; then
-	# 			printf "%s%s -> %s\n" "$ICON_SUCCESS" "$val" "$cmd_path"
-	# 		else
-	# 			printf "%s%s\n" "$ICON_FAILURE" "$val"
-	# 		fi
-	# 		;;
-	# 	dep)
-	# 		printf "%sMissing dependency: %s\n" "$ICON_ERROR" "$val" >&2
-	# 		;;
-	# 	err)
-	# 		printf "%sERROR: %s\n" "$ICON_FAILURE" "$val" >&2
-	# 		;;
-	# 	*)
-	# 		printf "%s%s\n" "$icon" "$val"
-	# 		;;
-	# 	esac
+	set_attributes() {
+		#@ Define format attributes
+		if [ -n "$CMD_TPUT" ]; then
+			FMT_RESET="$(tput sgr0)"
+			FMT_BOLD="$(tput bold)"
+			FMT_DIM="$(tput dim)"
+			FMT_ITALIC="$(tput sitm)"
+			FMT_UNDERLINE="$(tput smul)"
+			FMT_BLINK="$(tput blink)"
+			FMT_INVERT="$(tput rev)"
+			FMT_HIDDEN="$(tput invis)"
+		else
+			FMT_RESET="$(printf '\033[0m')"
+			FMT_BOLD="$(printf '\033[1m')"
+			FMT_DIM="$(printf '\033[2m')"
+			FMT_ITALIC="$(printf '\033[3m')"
+			FMT_UNDERLINE="$(printf '\033[4m')"
+			FMT_BLINK="$(printf '\033[5m')"
+			FMT_INVERT="$(printf '\033[7m')"
+			FMT_HIDDEN="$(printf '\033[8m')"
+		fi
 
-	# 	#@ Reset variables
-	# 	unset status_of
-	# }
+		#@ Define Presets
+		FMT_HIGHLIGHT="${FMT_HIGHLIGHT:-${FMT_BOLD}${FMT_UNDERLINE}}"
+		FMT_EMPHASIS="${FMT_EMPHASIS:-${FMT_BOLD}${FMT_ITALIC}}"
 
+		#@ Export format attributes
+		export FMT_RESET FMT_BOLD FMT_DIM FMT_ITALIC FMT_UNDERLINE FMT_BLINK FMT_INVERT FMT_HIDDEN FMT_HIGHLIGHT FMT_EMPHASIS
+	}
+
+	set_colors() {
+		#@ Check color mode and capabilities
+		[ -n "${NO_COLOR+x}" ] && return            # Honor NO_COLOR
+		[ "$TERM_COLOR_SUPPORTED" -ne 1 ] && return # Need color support
+
+		case "${color_mode:-auto}" in
+		'' | null | false | no | 0 | none) return ;; # Explicitly disabled
+		*) ;;                                        # Continue with colors
+		esac
+
+		#@ Set the basic 8 colors
+		base_colors="BLACK RED GREEN YELLOW BLUE MAGENTA CYAN WHITE"
+		i=0
+		for color in $base_colors; do
+			if [ -n "$CMD_TPUT" ]; then
+				eval "CLR_FG_${color}=\"\$(tput setaf $i)\""
+				eval "CLR_BG_${color}=\"\$(tput setab $i)\""
+				eval "export CLR_FG_${color} CLR_BG_${color}"
+			else
+				eval "CLR_FG_${color}=\$'\\033[3${i}m'"
+				eval "CLR_BG_${color}=\$'\\033[4${i}m'"
+				eval "export CLR_FG_${color} CLR_BG_${color}"
+			fi
+			i=$((i + 1))
+		done
+
+		#@ Extended colors for 256-color terminals
+		if [ "$TERM_COLORS" -ge 256 ]; then
+			#| Reds
+			CLR_FG_DARKRED="$CLR_FG_RED" CLR_FG_MAROON="$CLR_FG_RED"
+			export CLR_FG_DARKRED CLR_FG_MAROON
+
+			#| Yellows
+			CLR_FG_GOLD="$CLR_FG_YELLOW" CLR_FG_ORANGE="$CLR_FG_YELLOW"
+			export CLR_FG_GOLD CLR_FG_ORANGE
+
+			#| Greens
+			CLR_FG_LIME="$CLR_FG_GREEN" CLR_FG_OLIVE="$CLR_FG_GREEN"
+			export CLR_FG_LIME CLR_FG_OLIVE
+
+			#| Blues
+			CLR_FG_TEAL="$CLR_FG_CYAN" CLR_FG_NAVY="$CLR_FG_BLUE"
+			export CLR_FG_TEAL CLR_FG_NAVY
+
+			#| Purples
+			CLR_FG_PURPLE="$CLR_FG_MAGENTA" CLR_FG_PINK="$CLR_FG_MAGENTA"
+			export CLR_FG_PURPLE CLR_FG_PINK
+		fi
+	}
+
+	set_icons() {
+		#@ Check if icons are disabled globally
+		[ -n "${NO_ICONS+x}" ] && return #? Honor NO_ICONS
+
+		#@ Set the icon mode based on preferences and capabilities
+		ICON_MODE="${icon_mode:-"$ICON_MODE:-auto}"}"
+
+		#@ Check and update icon mode
+		case "$ICON_MODE" in
+		0 | none | null | false | no)
+			return
+			;; #? Explicitly disabled
+		1 | 2 | 3)
+			[ "$ICON_MODE" -gt "$TERM_LEVEL" ] &&
+				ICON_MODE=$TERM_LEVEL #? Clamped to terminal level
+			;;
+		auto | *)
+			ICON_MODE=$TERM_LEVEL
+			;; #? Default/auto mode
+		esac
+
+		#@ Set the icons
+		case $ICON_MODE in
+		3) #| Full Unicode/Emoji
+			ICON_SUCCESS="${icon_emoji_success:-"🟢"}"
+			ICON_FAILURE="${icon_emoji_failure:-"🔴"}"
+			ICON_INFORMATION="${icon_emoji_information:-"ℹ️"}"
+			ICON_WARNING="${icon_emoji_warning:-"💡"}"
+			ICON_DEBUG="${icon_emoji_debug:-"🔍"}"
+			ICON_ERROR="${icon_emoji_error:-"❌"}"
+			ICON_PADDING="${icon_emoji_padding:-" "}"
+			;;
+		2) #| ANSI/Unicode
+			ICON_SUCCESS="${icon_unicode_success:-"[✓]"}"
+			ICON_FAILURE="${icon_unicode_failure:-"[✗]"}"
+			ICON_INFORMATION="${icon_unicode_success:-"[i]"}"
+			ICON_WARNING="${icon_unicode_information:-"[!]"}"
+			ICON_DEBUG="${icon_unicode_warning:-"[◆]"}"
+			ICON_ERROR="${icon_unicode_debug:-"[×]"}"
+			ICON_PADDING="${icon_unicode_padding:-" "}"
+			;;
+		1) #| Basic ASCII
+			ICON_SUCCESS="${icon_ascii_success:-"[+]"}"
+			ICON_FAILURE="${icon_ascii_failure:-"[-]"}"
+			ICON_INFORMATION="${icon_ascii_information:-"[i]"}"
+			ICON_WARNING="${icon_ascii_warning:-"[!]"}"
+			ICON_DEBUG="${icon_ascii_debug:-"[?]"}"
+			ICON_ERROR="${icon_ascii_error:-"[x]"}"
+			ICON_PADDING="${icon_ascii_success:-" "}"
+			;;
+		0) #| No icons
+			ICON_SUCCESS=""
+			ICON_FAILURE=""
+			ICON_INFORMATION=""
+			ICON_WARNING=""
+			ICON_DEBUG=""
+			ICON_ERROR=""
+			ICON_PADDING=""
+			;;
+		esac
+
+		#@ Color Icons, if available
+		ICON_SUCCESS="${ICON_PADDING}${CLR_FG_GREEN}${ICON_SUCCESS}${FMT_RESET}${ICON_PADDING}"
+		ICON_FAILURE="${ICON_PADDING}${CLR_FG_RED}${ICON_FAILURE}${FMT_RESET}${ICON_PADDING}"
+		ICON_INFORMATION="${ICON_PADDING}${CLR_FG_BLUE}${ICON_INFORMATION}${FMT_RESET}${ICON_PADDING}"
+		ICON_WARNING="${ICON_PADDING}${CLR_FG_YELLOW}${ICON_WARNING}${FMT_RESET}${ICON_PADDING}"
+		ICON_DEBUG="${ICON_PADDING}${CLR_FG_PURPLE}${ICON_DEBUG}${FMT_RESET}${ICON_PADDING}"
+		ICON_ERROR="${ICON_PADDING}${CLR_FG_RED}${ICON_ERROR}${FMT_RESET}${ICON_PADDING}"
+
+		#@ Export all ICON_ variables
+		export ICON_MODE ICON_SUCCESS ICON_FAILURE ICON_INFORMATION ICON_WARNING ICON_DEBUG ICON_ERROR ICON_PADDING
+	}
+
+	#@ Initialize functions
+	detect_terminal_capabilities
+	set_verbosity_level
+	set_attributes
+	set_colors
+	set_icons
+}
+
+initialize_functions() {
 	pout_status() {
 		#@ Initialize variables
 		status_of="" val=""
@@ -261,6 +292,7 @@ initialize_output() {
 			;;
 		esac
 	}
+
 	pout_header() {
 		#DOC Print a heading with a title.
 		#DOC
@@ -359,13 +391,6 @@ initialize_output() {
 				[ -n "$val" ] && format_and_print "$var" "$val"
 			done
 		fi
-	}
-}
-
-initialize_utilities() {
-
-	cmd_available() {
-		command -v "$1" >/dev/null 2>&1
 	}
 
 	git_has_changes() {
@@ -510,7 +535,7 @@ initialize_utilities() {
 		[ "$helix_root" ] && helix_cmd="${helix_cmd} --working-dir ${helix_root}"
 		[ "$helix_log" ] && helix_cmd="${helix_cmd} --log ${helix_log}"
 
-		$helix_cmd "${helix_args:-$helix_root}"
+		"$helix_cmd" "${helix_args:-$helix_root}"
 	}
 }
 
@@ -519,21 +544,26 @@ project_info() {
 		pout_header "Utilities"
 
 		UTILITIES="
+			bat
 			cargo
 			code
 			direnv
 			dotsrus
 			dust
+			eza
 			fastfetch
 			git
 			hx
 			just
+			lsd
 			mktemp
+			nix
+			pls
+			pop
 			rustc
 			starship
 			thefuck
 			tokei
-			pop
 			treefmt
 			zoxide
 		"
@@ -614,48 +644,68 @@ project_info() {
 	}
 
 	define_aliases() {
-		cmd_available bat && alias cat='bat --style=plain'
-		cmd_available cargo && alias A='cargo add'
+		[ "$CMD_BAT" ] && alias cat='bat --style=plain'
+		[ "$CMD_CARGO" ] && alias A='cargo add'
 		alias B='project_build'
-		cmd_available cargo && alias C='project_clean'
-		cmd_available dust && alias D='cargo remove'
-		cmd_available hx && alias E='hx'
+		[ "$CMD_CARGO" ] && alias C='project_clean'
+		[ "$CMD_CARGO" ] && alias D='cargo remove'
+
+		case "$EDITOR" in
+		hx) alias E='helix_wrapper' ;;
+		*) alias E="\$EDITOR" ;;
+		esac
+
 		alias F='project_format'
-		cmd_available cargo && alias G='cargo generate'
-		cmd_available hx && alias H='hx "$PRJ_ROOT"'
+
+		[ "$CMD_CARGO" ] && alias G='cargo generate'
+
+		[ "$CMD_HX" ] && alias H='helix_wrapper' #? Change to help
+
 		alias I='project_init'
-		cmd_available just && alias J='just'
+
+		[ "$CMD_JUST" ] && alias J='just'
 		alias K='exit'
-		if cmd_available eza; then
-			alias ls='eza --almost-all --group-directories-first --color=always --icons=always --git --git-ignore --time-style relative --total-size --smart-group'
-			alias L='ls --long '
-			alias La='ls --long --git'
+		if [ "$CMD_EZA" ]; then
+			alias L='eza --long --almost-all --group-directories-first --color=always --icons=always --git --git-ignore --time-style relative --total-size --smart-group'
 			alias Lt='L --tree'
-		elif cmd_available lsd; then
-			alias ls='lsd --almost-all --group-directories-first --color=always'
-			alias L='ls --long --git --date=relative --versionsort --total-size'
+		elif [ "$CMD_LSD" ]; then
+			alias L='lsd --long --almost-all --group-directories-first --color=always --git --date=relative --versionsort --total-size'
 			alias Lt='L --tree'
 		else
-			alias ls='ls --almost-all --group-directories-first --color=always'
-			alias L='ls -l'
+			alias L='ls -lAhF --color=always --group-directories-first'
 			alias Lt='L --recursive'
 		fi
-		cmd_available pls && alias Lp='pls --det perm --det oct --det user --det group --det mtime --det git --det size --header false'
+		[ "$CMD_PLS" ] && alias Lp='pls --det perm --det oct --det user --det group --det mtime --det git --det size --header false'
 		alias M='mkdir --parents'
-		cmd_available cargo && alias N='cargo new'
-		cmd_available cargo && alias O=''
+		[ "$CMD_CARGO" ] && alias N='cargo new'
+		alias O='size_check'
 		alias P='project_info'
-		alias Ps='project_info --size'
-		cmd_available cargo && alias Q='cargo watch --quiet --clear --exec "run --quiet --"'
-		cmd_available cargo && alias R='cargo run --release'
-		cmd_available cargo && alias S='cargo search'
+		[ "$CMD_CARGO" ] && alias Q='cargo watch --quiet --clear --exec "run --quiet --"'
+		[ "$CMD_CARGO" ] && alias R='cargo run --release'
+		[ "$CMD_CARGO" ] && alias S='cargo search'
 		alias T='create_file'
 		alias U='project_update'
-		cmd_available code && alias V='code "$PRJ_ROOT"'
-		cmd_available cargo && alias W='cargo watch --quiet --clear --exec "run --"'
-		cmd_available cargo && alias X='project_clean --reset'
+
+		if [ "$VISUAL" ]; then
+			alias V='$(eval $VISUAL "$PRJ_ROOT")'
+		elif [ "$CMD_CODE" ]; then
+			alias V='$(eval code "$PRJ_ROOT")'
+		elif [ "$CMD_CODIUM" ]; then
+			alias V='$(eval CMD_CODIUM "$PRJ_ROOT")'
+		fi
+
+		[ "$CMD_CARGO" ] && alias W='cargo watch --quiet --clear --exec "run --"'
+		alias X='project_clean --reset'
+
 		if [ -f "$PRJ_INFO" ]; then
-			alias Y='cat "$PRJ_INFO"'
+			if [ "$READER" ]; then
+				reader="$READER"
+			elif [ "$CMD_BAT" ]; then
+				reader='bat'
+			else
+				reader='cat'
+			fi
+			alias Y='\$reader "$PRJ_INFO"'
 		else
 			alias Y='project_info'
 		fi
@@ -676,7 +726,7 @@ project_init() {
 
 	init_cargo() {
 		#@ Verify cargo is available
-		cmd_available cargo || {
+		[ "$CMD_CARGO" ] || {
 			pout_status \
 				--error "Initialization failed" \
 				--dependency "cargo"
@@ -705,14 +755,15 @@ project_init() {
 		#@ Define config paths
 		config_toml_src="$PRJ_CONF/cargo.toml"
 		config_toml_lnk="$PRJ_ROOT/.cargo/config.toml"
-		config_toml_bac="$PRJ_BCUP/.cargo/.archive/config.toml.$(timestamp)"
+		config_toml_bac="$PRJ_BCUP/config.toml.$(timestamp)"
 
 		#@ Create config directories
 		mkdir -p "$(dirname "$config_toml_lnk")"
 
 		#@ Debug helper function
+		#@ TODO: Make a general print_debug function which uses pout_env
 		debug_config() {
-			[ ${DEBUG:-0} -eq 1 2>/dev/null ] || return 0
+			[ "$VERBOSITY_LEVEL" -ge "$VERBOSITY_LEVEL_DEBUG" ] || return 0
 			printf "Target exists: %s\n" "$([ -e "$1" ] && echo "yes" || echo "no")"
 			printf "Is symlink: %s\n" "$([ -L "$1" ] && echo "yes" || echo "no")"
 			printf "Is file: %s\n" "$([ -f "$1" ] && echo "yes" || echo "no")"
@@ -764,66 +815,11 @@ project_init() {
 	#@ Initialize Cargo project
 	init_cargo
 
-	# cmd_available cargo || {
-	# 	pout_status \
-	# 		--error "Initialization failed" \
-	# 		--dependency "cargo"
-	# 	return 127
-	# }
-
-	# #@ Create/Update Cargo.toml with the project name
-	# if [ -f Cargo.toml ]; then
-	# 	if command -v mktemp >/dev/null 2>&1; then
-	# 		tmp="$(mktemp)" || exit 1
-	# 	else
-	# 		tmp="${TMPDIR:-/tmp}/${0##*/}.$$.tmp"
-	# 	fi
-	# 	trap 'rm -f "$tmp"' EXIT
-
-	# 	file="$PRJ_ROOT/Cargo.toml"
-	# 	sed "s|^name = .*|name = \"$PRJ_NAME\"|" "$file" >"$tmp"
-	# 	mv -- "$tmp" "$file"
-	# else
-	# 	cargo init --name "$PRJ_NAME"
-	# fi
-
-	# config_toml_lnk="$PRJ_ROOT/.cargo/config.toml"
-	# config_toml_src="$PRJ_CONF/cargo.toml"
-	# config_toml_bac="$PRJ_BCUP/.cargo/.archive/config.toml.$(timestamp)"
-
-	# #@ Ensure the target parent directory exists
-	# mkdir -p "$(dirname "$config_toml_lnk")"
-
-	# #@ Create backup if target exists
-	# [ -f "$config_toml_lnk" ] && {
-
-	# 	#@ Create backup
-	# 	backup_dir="$(dirname "$config_toml_bac")"
-	# 	mkdir -p "$backup_dir"
-	# 	cp -p "$config_toml_lnk" "$config_toml_bac"
-
-	# 	#@ Cleanup old backups (keep last 3)
-	# 	find "${backup_dir}" -maxdepth 1 -type f -name "config.toml.*" -printf '%T@ %p\n' |
-	# 		sort -rn |
-	# 		awk 'NR>5 {sub(/^[^ ]+ /, ""); print}' |
-	# 		xargs -r rm --
-	# }
-
-	# if [ ! -f "$config_toml_lnk" ] || [ -L "$config_toml_src" ] ||
-	# [ "$(find "$config_toml_src" -prune -newer "$config_toml_lnk" 2>/dev/null)" ]; then
-	# 	rm -f "$config_toml_lnk"
-	# 	cp "$config_toml_src" "$config_toml_lnk"
-	# elif [ "$(find "$config_toml_lnk" -prune -newer "$config_toml_src" 2>/dev/null)" ]; then
-	# 	cp "$config_toml_src" "$config_toml_bac"
-	# 	rm -f "$config_toml_src"
-	# 	cp "$config_toml_lnk" "$config_toml_src"
-	# fi
-
 	project_build
 }
 
 project_build() {
-	cmd_available cargo || {
+	[ "$CMD_CARGO" ] || {
 		pout_status \
 			--error "Build failed" \
 			--dependency "cargo"
@@ -834,9 +830,13 @@ project_build() {
 }
 
 project_update() {
-	cmd_available nix && nix flake update
-	cmd_available cargo && cargo update
-	cmd_available geet && geet --push
+	[ "$CMD_NIX" ] && nix flake update
+	[ "$CMD_CARGO" ] && cargo update
+	if [ "$CMD_GEET" ]; then
+		geet --push "$@"
+	else
+		project_git "$@"
+	fi
 }
 
 project_git() {
@@ -945,10 +945,13 @@ project_clean() {
 	case "${1:-}" in
 	-x | --reset)
 		cleanup_paths=".git .cargo Cargo.toml Cargo.lock src .direnv target"
+		[ "$CMD_CARGO" ] && cargo clean
+		[ "$CMD_NIX" ] && nix flake update
+		return
 		;;
 	*)
 		cleanup_paths=".direnv"
-		cmd_available cargo && cargo clean
+		[ "$CMD_CARGO" ] && cargo clean
 		;;
 	esac
 
@@ -960,7 +963,7 @@ project_clean() {
 	for item in $cleanup_paths; do
 		target="${PRJ_ROOT:?}/${item}"
 		[ -e "$target" ] && {
-			if cmd_available trash; then
+			if [ "$CMD_TRASH" ]; then
 				trash put -- "$target"
 			else
 				rm -rf -- "$target"
