@@ -255,7 +255,7 @@ initialize_output_mode() {
 initialize_functions() {
 	pout_status() {
 		#@ Initialize variables
-		status_of="" val=""
+		status_of="" val="" ctx="$PRJ_NAME"
 
 		#@ Parse arguments
 		while [ "$#" -gt 0 ]; do
@@ -274,6 +274,10 @@ initialize_functions() {
 				val="$2"
 				shift
 				;;
+			--context)
+				context="$2"
+				shift
+				;;
 			*) val="$1" ;;
 			esac
 			shift
@@ -282,7 +286,18 @@ initialize_functions() {
 		#@ Print based on status type
 		case "$status_of" in
 		dep)
-			printf "%sMissing dependency: %s\n" "$icon" "$val" >&2
+			printf "%s%s %s required by the %s%s\n" \
+				"$icon" \
+				"${CLR_FG_RED}${FMT_HIGHLIGHT}Missing Dependency${FMT_RESET}" \
+				"${FMT_EMPHASIS}${val}${FMT_RESET}" \
+				"${FMT_BOLD}${context:-$ctx}${FMT_RESET}" \
+				"$(
+					if [ "$context" ]; then
+						printf " function."
+					else
+						printf " project."
+					fi
+				)" >&2
 			;;
 		error)
 			printf "%sERROR: %s\n" "$icon" "$val" >&2
@@ -468,6 +483,100 @@ initialize_functions() {
 		date '+%Y%m%d_%H%M%S'
 	}
 
+	check_dependencies() {
+		#@ Initialize variables
+		# context="the ${PRJ_NAME} project"
+		deps=""
+
+		#@ Parse options and collect deps
+		while [ "$#" -gt 0 ]; do
+			case "$1" in
+			--context)
+				context="$2" # Override auto-context
+				shift
+				;;
+			*)
+				deps="${deps:+$deps }$1"
+				;;
+			esac
+			shift
+		done
+
+		#@ Check each dependency
+		for dep in $deps; do
+			dep_upper=$(printf '%s' "$dep" | tr '[:lower:]' '[:upper:]')
+			dep_lower=$(printf '%s' "$dep" | tr '[:upper:]' '[:lower:]')
+
+			eval "[ \"\$CMD_${dep_upper}\" ]" || {
+				pout_status \
+					--error "Initialization failed" \
+					--dependency "$dep_lower" \
+					--context "$context"
+				return 127
+			}
+		done
+	}
+
+	init_config_file() {
+		#@ Required parameters
+		src="$1" # Source file
+		lnk="$2" # Target link
+		bac="$3" # Backup path
+		dep="$4" # Required dependency
+
+		#@ Verify dependency if specified
+		[ "$dep" ] && ! command -v "$dep" >/dev/null 2>&1 && {
+			pout_status \
+				--error "Initialization failed" \
+				--dependency "$dep"
+			return 127
+		}
+
+		#@ Verify source exists
+		[ ! -f "$src" ] && {
+			pout_status --error "Source file missing: $src"
+			return 1
+		}
+
+		#@ Set up temporary file handling
+		if [ "$CMD_MKTEMP" ]; then
+			tmp="$(mktemp)" || exit 1
+		else
+			tmp="${TMPDIR:-/tmp}/${0##*/}.$$.tmp"
+		fi
+		trap 'rm -f "$tmp"' EXIT
+
+		#@ Create target directories
+		mkdir -p "$(dirname "$lnk")"
+		mkdir -p "$(dirname "$bac")"
+		mkdir -p "$(dirname "$src")"
+
+		#@ Check if target exists
+		if [ -e "$lnk" ]; then
+			if [ -L "$lnk" ]; then
+				#@ Is symlink - backup and remove
+				cp "$lnk" "$bac"
+				unlink "$lnk"
+				cp "$src" "$lnk"
+			elif [ -f "$lnk" ]; then
+				if [ "$(find "$src" -prune -newer "$lnk" 2>/dev/null)" ]; then
+					#@ Source is newer - backup target and update
+					cp "$lnk" "$bac"
+					rm -f "$lnk"
+					cp "$src" "$lnk"
+				elif [ "$(find "$lnk" -prune -newer "$src" 2>/dev/null)" ]; then
+					#@ Target is newer - backup source and update
+					cp "$src" "$bac"
+					rm -f "$src"
+					cp "$lnk" "$src"
+				fi
+			fi
+		else
+			#@ Target doesn't exist - copy from source
+			cp "$src" "$lnk"
+		fi
+	}
+
 	size_check() {
 		pout_header "Storage Utilization"
 		if [ "$CMD_DUST" ]; then
@@ -501,14 +610,36 @@ initialize_functions() {
 		fastfetch_cmd "$@"
 	}
 
+	editor_wrapper() {
+		ide=1
+		while [ "$#" -ge 1 ]; do
+			case "$1" in
+			--visual | --ide | --gui) ide=1 ;;
+			*) ;;
+			esac
+			shift
+		done
+
+		if [ "$ide" -eq 1 ]; then
+			editor="${EDITOR:-hx}"
+		else
+			editor="${VISUAL:-hx}"
+		fi
+
+		case "$editor" in
+		hx) helix_wrapper "$@" ;;
+		*) "$editor" "$PRJ_ROOT" ;;
+		esac
+	}
+
 	helix_wrapper() {
-		[ "$CMD_HELIX" ] || return
+		[ "$CMD_HX" ] || return
 
 		#@ Initialize variables
 		helix_cmd="hx"
 		helix_root="$PRJ_ROOT"
-		helix_conf="${HELIX_CONF:-$PRJ_ROOT/.config/helix.toml}"
-		helix_log="${HELIX_LOG:-$PRJ_ROOT/.cache/helix.log}"
+		helix_conf="${HELIX_CONF:-$PRJ_CONF/helix.toml}"
+		helix_log="${HELIX_LOG:-$PRJ_CACHE/helix.log}"
 		helix_flags=""
 		helix_args=""
 
@@ -535,7 +666,7 @@ initialize_functions() {
 		[ "$helix_root" ] && helix_cmd="${helix_cmd} --working-dir ${helix_root}"
 		[ "$helix_log" ] && helix_cmd="${helix_cmd} --log ${helix_log}"
 
-		"$helix_cmd" "${helix_args:-$helix_root}"
+		eval "$helix_cmd" "${helix_args:-$helix_root}"
 	}
 }
 
@@ -551,6 +682,7 @@ project_info() {
 			dotsrus
 			dust
 			eza
+			fd
 			fastfetch
 			git
 			hx
@@ -559,7 +691,7 @@ project_info() {
 			mktemp
 			nix
 			pls
-			pop
+			rg
 			rustc
 			starship
 			thefuck
@@ -597,12 +729,11 @@ project_info() {
 					-e 's/_$//' |
 				tr '[:upper:]' '[:lower:]'
 		)"
-		PRJ_BCUP="$PRJ_ROOT/.archive"
 		PRJ_CACHE="$PRJ_ROOT/.cache"
 		PRJ_CONF="$(dirname "$(find_first --root "$PRJ_ROOT" --target "init*")")"
 		PRJ_INFO="$(find_first --root "$PRJ_ROOT" --target "readme*")"
-		export PRJ_ROOT PRJ_NAME PRJ_CONF PRJ_INFO PRJ_BCUP
-		pout_env PRJ_NAME PRJ_ROOT PRJ_CONF PRJ_INFO PRJ_BCUP
+		export PRJ_ROOT PRJ_NAME PRJ_CONF PRJ_INFO
+		pout_env PRJ_NAME PRJ_ROOT PRJ_CONF PRJ_INFO
 
 		#| Direnv
 		if [ "$CMD_DIRENV" ]; then
@@ -650,10 +781,7 @@ project_info() {
 		[ "$CMD_CARGO" ] && alias C='project_clean'
 		[ "$CMD_CARGO" ] && alias D='cargo remove'
 
-		case "$EDITOR" in
-		hx) alias E='helix_wrapper' ;;
-		*) alias E="\$EDITOR" ;;
-		esac
+		alias E='editor_wrapper'
 
 		alias F='project_format'
 
@@ -685,15 +813,7 @@ project_info() {
 		[ "$CMD_CARGO" ] && alias S='cargo search'
 		alias T='create_file'
 		alias U='project_update'
-
-		if [ "$VISUAL" ]; then
-			alias V='$(eval $VISUAL "$PRJ_ROOT")'
-		elif [ "$CMD_CODE" ]; then
-			alias V='$(eval code "$PRJ_ROOT")'
-		elif [ "$CMD_CODIUM" ]; then
-			alias V='$(eval CMD_CODIUM "$PRJ_ROOT")'
-		fi
-
+		alias V='editor_wrapper --visual'
 		[ "$CMD_CARGO" ] && alias W='cargo watch --quiet --clear --exec "run --"'
 		alias X='project_clean --reset'
 
@@ -705,7 +825,7 @@ project_info() {
 			else
 				reader='cat'
 			fi
-			alias Y='\$reader "$PRJ_INFO"'
+			alias Y='eval -- \"$reader\" \"$PRJ_INFO\"'
 		else
 			alias Y='project_info'
 		fi
@@ -721,101 +841,57 @@ project_info() {
 }
 
 project_init() {
-
 	pout_header "Project"
 
 	init_cargo() {
-		#@ Verify cargo is available
-		[ "$CMD_CARGO" ] || {
-			pout_status \
-				--error "Initialization failed" \
-				--dependency "cargo"
-			return 127
-		}
+		#@ Verify required dependencies
+		check_dependencies cargo || return $?
 
-		#@ Set up temporary file handling
-		if [ "$CMD_MKTEMP" ]; then
+		#@ Set up temporary file
+		if command -v mktemp >/dev/null 2>&1; then
 			tmp="$(mktemp)" || exit 1
 		else
 			tmp="${TMPDIR:-/tmp}/${0##*/}.$$.tmp"
 		fi
 		trap 'rm -f "$tmp"' EXIT
 
-		#@ Create/Update Cargo.toml with project name
+		#@ Update Cargo.toml if it exists
 		if [ -f Cargo.toml ]; then
-			#@ Update existing Cargo.toml
 			file="$PRJ_ROOT/Cargo.toml"
 			sed "s|^name = .*|name = \"$PRJ_NAME\"|" "$file" >"$tmp"
 			mv -- "$tmp" "$file"
 		else
-			#@ Initialize new Cargo project
 			cargo init --name "$PRJ_NAME"
 		fi
 
-		#@ Define config paths
-		config_toml_src="$PRJ_CONF/cargo.toml"
-		config_toml_lnk="$PRJ_ROOT/.cargo/config.toml"
-		config_toml_bac="$PRJ_BCUP/config.toml.$(timestamp)"
+		#@ Initialize cargo config
+		init_config_file \
+			"$PRJ_CONF/cargo.toml" \
+			"$PRJ_ROOT/.cargo/config.toml" \
+			"$PRJ_CACHE/config.toml.$(timestamp)" \
+			"cargo"
+	}
 
-		#@ Create config directories
-		mkdir -p "$(dirname "$config_toml_lnk")"
+	init_gitignore() {
+		#@ Verify required dependencies
+		check_dependencies git --context init_gitignore || return $?
 
-		#@ Debug helper function
-		#@ TODO: Make a general print_debug function which uses pout_env
-		debug_config() {
-			[ "$VERBOSITY_LEVEL" -ge "$VERBOSITY_LEVEL_DEBUG" ] || return 0
-			printf "Target exists: %s\n" "$([ -e "$1" ] && echo "yes" || echo "no")"
-			printf "Is symlink: %s\n" "$([ -L "$1" ] && echo "yes" || echo "no")"
-			printf "Is file: %s\n" "$([ -f "$1" ] && echo "yes" || echo "no")"
-			printf "Target path: %s\n" "$(readlink -f "$1" 2>/dev/null || echo "none")"
-		}
-
-		#@ Backup helper function
-		backup_config() {
-			backup_dir="$(dirname "$config_toml_bac")"
-			mkdir -p "$backup_dir"
-			cp -p "$1" "$config_toml_bac"
-
-			#@ Rotate backups (keep last 5)
-			find "${backup_dir}" -maxdepth 1 -type f -name "config.toml.*" -printf '%T@ %p\n' |
-				sort -rn |
-				awk 'NR>5 {sub(/^[^ ]+ /, ""); print}' |
-				xargs -r rm --
-		}
-
-		#@ Sync config files
-		debug_config "$config_toml_lnk"
-
-		if [ -e "$config_toml_lnk" ]; then
-			#@ Target exists
-			if [ -L "$config_toml_lnk" ]; then
-				#@ Is symlink - backup and remove
-				backup_config "$config_toml_lnk"
-				unlink "$config_toml_lnk"
-				cp "$config_toml_src" "$config_toml_lnk"
-			elif [ -f "$config_toml_lnk" ]; then
-				if [ "$(find "$config_toml_src" -prune -newer "$config_toml_lnk" 2>/dev/null)" ]; then
-					#@ Source is newer - backup target and update
-					backup_config "$config_toml_lnk"
-					rm -f "$config_toml_lnk"
-					cp "$config_toml_src" "$config_toml_lnk"
-				elif [ "$(find "$config_toml_lnk" -prune -newer "$config_toml_src" 2>/dev/null)" ]; then
-					#@ Target is newer - backup source and update
-					backup_config "$config_toml_src"
-					rm -f "$config_toml_src"
-					cp "$config_toml_lnk" "$config_toml_src"
-				fi
-			fi
-		else
-			#@ Target doesn't exist - copy from source
-			cp "$config_toml_src" "$config_toml_lnk"
-		fi
+		#@ Initialize gitignore
+		init_config_file \
+			"$PRJ_CONF/.gitignore" \
+			"$PRJ_ROOT/.gitignore" \
+			"$PRJ_CACHE/.gitignore.$(timestamp)" \
+			"git"
 	}
 
 	#@ Initialize Cargo project
-	init_cargo
+	init_cargo || return $?
 
-	project_build
+	#@ Initialize gitignore
+	init_gitignore || return $?
+
+	#@ Build project
+	project_build || return $?
 }
 
 project_build() {
@@ -862,95 +938,25 @@ project_git() {
 	fi
 }
 
-project_git_old() {
-	# Function to initialize a Git repository if not already initialized
-	init_repo() {
-		# if [ ! -d .git ]; then
-		# 	printf "Initializing new Git repository...\n"
-		# 	git init
-		# else
-		# 	printf "Git repository already initialized.\n"
-		# fi
-
-		[ ! -d .git ] && {
-			pout_status "Initializing new Git repository..."
-		}
-	}
-
-	# Function to add changes to the staging area
-	add_changes() {
-		printf "Adding changes to the staging area...\n"
-		git add .
-	}
-
-	# Function to commit changes with a provided message or a default one
-	commit_changes() {
-		# Join all remaining arguments as the commit message
-		COMMIT_MSG="$*"
-		if [ -z "$COMMIT_MSG" ]; then
-			COMMIT_MSG="Auto-commit"
-		fi
-		printf "Committing changes with message: '%s'\n" "$COMMIT_MSG"
-		git commit -m "$COMMIT_MSG"
-	}
-
-	# Function to pull from the remote repository
-	pull_changes() {
-		printf "Pulling latest changes from remote...\n"
-		git pull
-	}
-
-	# Function to push changes to the remote repository
-	push_changes() {
-		printf "Pushing changes to remote...\n"
-		git push
-	}
-
-	# Main workflow
-	init_repo
-
-	# Check if a remote is configured
-	if [ "$(git remote get-url origin >/dev/null 2>&1)" ]; then
-		if [ "$(git status --porcelain >/dev/null 2>&1)" ]; then
-			printf "Local changes detected. Please commit or stash your changes before pulling.\n"
-			# TODO: List changes and give a prompt to continue
-			return 1
-		else
-			pull_changes
-		fi
-
-		add_changes
-		commit_changes "$@"
-		push_changes
-	else
-		add_changes
-		commit_changes "$@"
-		printf "No remote repository configured. Skipping pull and push.\n"
-	fi
-}
-
 project_format() {
-	cmd_available treefmt &&
+	[ "$CMD_TREEFMT" ] &&
 		treefmt \
 			--tree-root="$PRJ_ROOT" \
 			--config-file "$PRJ_CONF/treefmt.toml" \
 			--allow-missing-formatter \
 			--ci
 
-	cmd_available just && just --fmt --quiet
+	[ "$CMD_JUST" ] && just --fmt --quiet
 }
 
 project_clean() {
-	cleanup_paths=""
 	case "${1:-}" in
 	-x | --reset)
-		cleanup_paths=".git .cargo Cargo.toml Cargo.lock src .direnv target"
-		[ "$CMD_CARGO" ] && cargo clean
-		[ "$CMD_NIX" ] && nix flake update
+		cleanup_paths=".git .cargo Cargo.toml Cargo.lock src .direnv target flake.lock"
 		return
 		;;
 	*)
-		cleanup_paths=".direnv"
+		cleanup_paths=".direnv .cache"
 		[ "$CMD_CARGO" ] && cargo clean
 		;;
 	esac

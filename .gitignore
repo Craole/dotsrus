@@ -1,1 +1,45 @@
-/target
+#| Hidden Files (Base Rule)
+.*
+
+#| Allow Specific Configs
+!.config/
+!.cargo/
+
+#| Version Control
+!.git*
+!.gitignore
+!.gitattributes
+!.github/
+
+#| Development Environment
+!.envrc
+!.env.example
+result
+result-*
+.direnv/
+
+#| Rust
+target/
+debug/
+**/*.rs.bk
+*.pdb
+# Cargo.lock    # Uncomment for libraries
+
+#| Build & Cache
+dist/
+build/
+out/
+.cache/
+
+#| Logs & Temp
+*.log
+tmp/
+temp/
+*.tmp
+*~
+
+#| Editor Working Files
+tags
+*.sw[a-p]
+*.bak
+*.bac
