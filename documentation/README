@@ -1,6 +1,7 @@
-Dots 'R' Us
+# Dots 'R' Us
 
-A high-performance environment manager that caches paths and environment variables for lightning-fast shell initialization.
+A high-performance environment manager that caches paths and environment variables
+for lightning-fast shell initialization.
 
 ## Why Dots 'R' Us?
 
@@ -115,16 +116,12 @@ Configuration details coming soon.
 
 ## License
 
-This project is licensed under the Apache License - see the [LICENSE](./LICENSE) file for details.
+  This project is licensed under the [Apache License](./LICENSE)
 
 ## Author
 
-[Craig 'Craole' Cole](ccutils@craole.cc)
+Craig 'Craole' Cole <ccutils@craole.cc>
 
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-```
-
-```

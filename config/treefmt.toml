@@ -1,82 +1,3 @@
-# [global]
-# excludes = [
-#   ".git/*",
-#   ".direnv/*",
-#   "target/*",
-#   "result/*",
-#   "*.lock",
-#   "**/*justfile",
-#   # "LICENSE",
-# ]
-
-# [formatter.mdformat]
-# command = "mdformat"
-# excludes = []
-# includes = ["*.md", "**/*LICENSE", "**/*README"]
-# options = []
-# priority = 0
-
-# [formatter.nixfmt]
-# command = "nixfmt"
-# excludes = []
-# includes = ["*.nix"]
-# options = []
-
-# [formatter.prettier]
-# command = "prettier"
-# excludes = []
-# includes = [
-#   "*.cjs",
-#   "*.css",
-#   "*.html",
-#   "*.js",
-#   "*.json",
-#   "*.json5",
-#   # "*.jsonc",
-#   "*.jsx",
-#   "*.md",
-#   "*.mdx",
-#   "*.mjs",
-#   "*.scss",
-#   "*.ts",
-#   "*.tsx",
-#   "*.vue",
-#   "*.yaml",
-#   "*.yml",
-# ]
-# options = ["--write"]
-# priority = 1
-
-# [formatter.rustfmt]
-# command = "rustfmt"
-# excludes = []
-# includes = ["*.rs"]
-# options = ["--edition", "2021"]
-
-# [formatter.shellcheck]
-# command = "shellcheck"
-# includes = ["*.sh", ".env*"]
-# priority = 0
-
-# [formatter.shfmt]
-# command = "shfmt"
-# options = ["-s", "-w"]
-# includes = ["*.sh", ".gitignore", ".env*"]
-# priority = 1
-
-# [formatter.taplo]
-# command = "taplo"
-# excludes = []
-# includes = ["*.toml", "rust-toolchain", "toolchain"]
-# options = ["format"]
-
-# [formatter.yamlfmt]
-# command = "yamlfmt"
-# excludes = []
-# includes = ["*.yaml", "*.yml"]
-# options = []
-# priority = 0
-
 [global]
 excludes = [
   # "treefmt.toml",
@@ -97,7 +18,6 @@ excludes = [
 includes = ["*.md", "README", "documentation/README"]
 command = "markdownlint-cli2"
 options = ["--fix"]
-# options = ["--fix", "--config", ".markdownlint.json"]
 priority = 1
 
 # [formatter.mdsh]
@@ -127,35 +47,10 @@ priority = 1
 # options = ["-i"]
 # priority = 2
 
-#TODO: Not working
-[formatter.editorconfig]
-includes = [".editorconfig"]
-# command  = "fmt_editorconfig"
-# options  = ["--format"]
-# command = "sh"
-# options = [
-#   "-euc",
-#   "command -v fmt_editorconfig >/dev/null || exit 0",
-#   "for file in \"$@\"; do fmt_editorconfig --format \"$file\"; done",
-# ]
-
-# [formatter.editorconfig_lint]
-# command = "fmt_editorconfig"
-# includes = [".editorconfig"]
-# options = ["--lint"]
-
 #| Nix
-# [formatter.deadnix]
-# includes = ["*.nix"]
-# priority = 1
-# command  = "deadnix"
-# options  = ["--edit"]
-
 [formatter.statix]
 includes = ["*.nix"]
 priority = 1
-# command  = "statix"
-# options  = ["fix"]
 command = "sh"
 options = [
   "-euc",
@@ -167,12 +62,6 @@ options = [
 includes = ["*.nix"]
 priority = 2
 command = "alejandra"
-
-# [formatter.nixfmt]
-# includes = ["*.nix"]
-# priority = 3
-# command = "nixfmt"
-
 
 # #| Rust formatting
 [formatter.rust]
@@ -186,11 +75,10 @@ includes = ["*.rs"]
 priority = 2
 
 #| Shell script formatting# Shell script formatting
-# [formatter.shellcheck]
-# command  = "shellcheck"
-# options  = ["--check-sourced", "--shell=sh", "*.bash", ".bash*"]
-# includes = ["*.sh", ".dotsrc", ".env*", ".shellcheckrc"]
-# priority = 1
+[formatter.shellcheck]
+command = "shellcheck"
+includes = ["*.sh", ".dotsrc", ".env*", ".shellcheckrc"]
+priority = 1
 
 [formatter.shfmt]
 command = "shfmt"
@@ -207,14 +95,14 @@ includes = [
 ]
 excludes = []
 options = [
-  # "--apply-ignore",
-  # "--binary-next-line",
-  # "--space-redirects",
-  # "--case-indent",
-  # "--indent",
-  # "2",
-  # "--diff",
-  # "--posix",
+  "--apply-ignore",
+  "--binary-next-line",
+  "--space-redirects",
+  "--case-indent",
+  "--indent",
+  "2",
+  "--diff",
+  "--posix",
   "--write",
 ]
 priority = 2
