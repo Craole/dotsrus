@@ -369,7 +369,9 @@ script_components() {
 				# val_margin=2
 				shift
 				name="$1"
-				eval "val=\"\$CMD_$(printf "%s" "$name" | tr '[:lower:]' '[:upper:]')\""
+				# Safe variable reference check
+				varname="CMD_$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
+				eval "[ -n \"\${$varname+x}\" ]" && eval "val=\"\${$varname}\""
 				if [ -n "${val-}" ]; then
 					icon="$ICON_SUCCESS"
 				else
@@ -514,7 +516,7 @@ script_components() {
 				dep_upper=$(printf '%s' "$dep" | tr '[:lower:]' '[:upper:]')
 				dep_lower=$(printf '%s' "$dep" | tr '[:upper:]' '[:lower:]')
 
-				eval "[ \"\$CMD_${dep_upper}\" ]" || {
+				eval "[ -n \"\${CMD_${dep_upper}+x}\" ]" || {
 					pout_status \
 						--error "Initialization failed" \
 						--dependency "$dep_lower" \
@@ -797,7 +799,6 @@ projects_components() {
 				eza
 				fd
 				fastfetch
-				geet
 				git
 				hx
 				just

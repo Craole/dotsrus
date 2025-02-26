@@ -1,5 +1,8 @@
-{ pkgs, toolchain, ... }:
 {
+  pkgs,
+  toolchain,
+  ...
+}: {
   default = pkgs.mkShell {
     packages = with pkgs; [
       # Core
