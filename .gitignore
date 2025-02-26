@@ -23,7 +23,7 @@ target/
 debug/
 **/*.rs.bk
 *.pdb
-# Cargo.lock    # Uncomment for libraries
+Cargo.lock    # Uncomment for libraries
 
 #| Build & Cache
 dist/

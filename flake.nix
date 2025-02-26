@@ -113,9 +113,19 @@
           else upSearch
         else search basePath getNext;
 
-    configPath = dirOf (pathOf {
-      items = "init.sh";
-    });
+    initPath = pathOf {items = "init-project.sh";};
+    binPath = dirOf initPath;
+    configPath = let
+      byConfig = pathOf {
+        items = ["config" ".config"];
+      };
+      byFiles = dirOf (pathOf {
+        items = ["starship.toml" "fastfetch.jsonc"];
+      });
+    in
+      if byConfig != null
+      then toString byConfig
+      else toString byFiles;
 
     toolchainPath = pathOf {
       items = [
@@ -212,10 +222,14 @@
           ];
 
           shellHook = ''
-            . ${configPath}/init.sh
+            printf "Init Path:" ${toString initPath}
           '';
         };
       }
     );
   };
 }
+# . ${initPath}
+
+            # printf "Config: %s\n "${configPath}"
+            # printf "   Bin: %s\n "${binPath}"

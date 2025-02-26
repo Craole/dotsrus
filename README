@@ -5,10 +5,10 @@ for lightning-fast shell initialization.
 
 ## Why Dots 'R' Us?
 
-- **Speed**: Up to 10x faster shell initialization through smart caching
+- **Speed**: Exceptionally fast shell initialization through smart caching
 - **Memory Efficient**: Minimal RAM usage with optimized variable storage
 - **Cross-Platform**: Works seamlessly across Linux, macOS, and Windows
-- **Safe**: Written in Rust with unsafe code forbidden
+- **Low System Impact**: Non-invasive design minimizes system footprint and interference
 
 ## Features
 
@@ -17,7 +17,7 @@ for lightning-fast shell initialization.
 - **Dotfiles Management**: Version control your configurations
 - **Path Handling**: Efficient PATH variable management
 - **Variable Management**: Organize and cache environment variables
-- **Watch Mode**: Auto-update cache on config changes
+<!-- - **Watch Mode**: Auto-update cache on config changes -->
 
 ## Performance
 
@@ -116,7 +116,7 @@ Configuration details coming soon.
 
 ## License
 
-  This project is licensed under the [Apache License](./LICENSE)
+This project is licensed under the [Apache License](./LICENSE)
 
 ## Author
 
