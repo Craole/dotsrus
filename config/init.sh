@@ -1,5 +1,5 @@
 #!/bin/sh
-
+set -eu
 main() {
 	script_components
 	projects_components
@@ -262,7 +262,7 @@ script_components() {
 	initialize_functions() {
 		pout_status() {
 			#@ Initialize variables
-			status_of="" val="" ctx="$PRJ_NAME"
+			status_of="" val="" ctx="$PRJ_NAME" context=""
 
 			#@ Parse arguments
 			while [ "$#" -gt 0 ]; do
@@ -492,7 +492,7 @@ script_components() {
 
 		check_dependencies() {
 			#@ Initialize variables
-			# context="the ${PRJ_NAME} project"
+			context=""
 			deps=""
 
 			#@ Parse options and collect deps
@@ -522,6 +522,93 @@ script_components() {
 					return 127
 				}
 			done
+		}
+
+		copy_file() {
+			#@ Initialize variables
+			bac="" src="" des="" deps=""
+
+			#@ Parse options
+			while [ $# -gt 0 ]; do
+				case "$1" in
+				--src)
+					src=$2
+					shift 2
+					;;
+				--des)
+					des=$2
+					shift 2
+					;;
+				--bac)
+					bac=$2
+					shift 2
+					;;
+				--dep)
+					deps="${deps:+$deps }$2"
+					shift 2
+					;;
+				*)
+					printf '%s\n' "Error: Invalid option $1" >&2
+					return 1
+					;;
+				esac
+			done
+
+			#@ Validate required params
+			if [ -z "$src" ]; then
+				pout_status --error "Source file path not provided"
+				return 1
+			elif [ -z "$des" ]; then
+				pout_status --error "Destination file path not provided"
+				return 1
+			elif [ -z "$bac" ]; then
+				bac="$PRJ_CACHE/$(basename "$src").$(timestamp)"
+			else
+				"${bac}.$(timestamp)"
+			fi
+
+			#@ Check dependency
+			check_dependencies "$deps" || return $?
+
+			#@ Verify source exists
+			[ ! -f "$src" ] && {
+				pout_status --error "Source file missing: $src"
+				return 1
+			}
+
+			#@ Handle file operations
+			if [ -e "$des" ]; then
+
+				#@ Ensure the backup directory exixts
+				mkdir -p "$(dirname "$bac")" || return "$?"
+
+				if [ -L "$des" ]; then
+					#@ Is symlink - backup and remove
+					cp "$des" "$bac"
+					unlink "$des"
+					cp "$src" "$des"
+				elif [ -f "$des" ]; then
+					if [ "$(find "$src" -prune -newer "$des" 2>/dev/null)" ]; then
+						#@ Source is newer - backup target and update
+						cp "$des" "$bac"
+						rm -f "$des"
+						cp "$src" "$des"
+					elif [ "$(find "$des" -prune -newer "$src" 2>/dev/null)" ]; then
+						#@ Target is newer - backup source and update
+						cp "$src" "$bac"
+						rm -f "$src"
+						cp "$des" "$src"
+					fi
+				fi
+			else
+				#@ Create the target directory
+				mkdir -p "$(dirname "$des")" || return "$?"
+
+				#@ Target doesn't exist - copy from source
+				cp "$src" "$des"
+			fi
+
+			return 0
 		}
 
 		init_config_file() {
@@ -701,30 +788,31 @@ projects_components() {
 			pout_header "Utilities"
 
 			UTILITIES="
-			bat
-			cargo
-			code
-			direnv
-			dotsrus
-			dust
-			eza
-			fd
-			fastfetch
-			git
-			hx
-			just
-			lsd
-			mktemp
-			nix
-			pls
-			rg
-			rustc
-			starship
-			thefuck
-			tokei
-			treefmt
-			zoxide
-		"
+				bat
+				cargo
+				code
+				direnv
+				dotsrus
+				dust
+				eza
+				fd
+				fastfetch
+				geet
+				git
+				hx
+				just
+				lsd
+				mktemp
+				nix
+				pls
+				rg
+				rustc
+				starship
+				thefuck
+				tokei
+				treefmt
+				zoxide
+			"
 
 			for dependency in $UTILITIES; do
 				#@ Define	the variable name in uppercase
@@ -758,9 +846,10 @@ projects_components() {
 						-e 's/_$//' |
 					tr '[:upper:]' '[:lower:]'
 			)"
-			PRJ_CACHE="$PRJ_ROOT/.cache"
 			PRJ_CONF="$(dirname "$(find_first --root "$PRJ_ROOT" --target "init*")")"
 			PRJ_INFO="$(find_first --root "$PRJ_ROOT" --target "readme*")"
+			PRJ_CACHE="$PRJ_ROOT/.cache"
+			PRJ_DOCS="$PRJ_ROOT/documentation"
 			export PRJ_ROOT PRJ_NAME PRJ_CONF PRJ_INFO
 			pout_env PRJ_NAME PRJ_ROOT PRJ_CONF PRJ_INFO
 
@@ -847,7 +936,7 @@ projects_components() {
 			alias X='project_clean --reset'
 
 			if [ -f "$PRJ_INFO" ]; then
-				if [ "$READER" ]; then
+				if [ "${READER+x}" ]; then
 					reader="$READER"
 				elif [ "$CMD_BAT" ]; then
 					reader='bat'
@@ -894,11 +983,15 @@ projects_components() {
 			fi
 
 			#@ Initialize cargo config
-			init_config_file \
-				"$PRJ_CONF/cargo.toml" \
-				"$PRJ_ROOT/.cargo/config.toml" \
-				"$PRJ_CACHE/config.toml.$(timestamp)" \
-				"cargo"
+			# init_config_file \
+			# 	"$PRJ_CONF/cargo.toml" \
+			# 	"$PRJ_ROOT/.cargo/config.toml" \
+			# 	"$PRJ_CACHE/config.toml.$(timestamp)" \
+			# 	"cargo"
+			copy_file \
+				--src "$PRJ_CONF/cargo.toml" \
+				--des "$PRJ_ROOT/.cargo/config.toml" \
+				--dep cargo
 		}
 
 		init_gitignore() {
@@ -913,23 +1006,31 @@ projects_components() {
 				"git"
 		}
 
+		#@ Initialize gitignore
+		# init_gitignore || return $?
+
 		#@ Initialize Cargo project
 		init_cargo || return $?
 
-		#@ Initialize gitignore
-		init_gitignore || return $?
+		copy_file \
+			--src "$PRJ_CONF/.gitignore" \
+			--des "$PRJ_ROOT/.gitignore" \
+			--dep git
+
+		copy_file \
+			--src "$PRJ_DOCS/LICENSE" \
+			--des "$PRJ_ROOT/LICENSE"
+
+		copy_file \
+			--src "$PRJ_DOCS/README" \
+			--des "$PRJ_ROOT/README"
 
 		#@ Build project
 		project_build || return $?
 	}
 
 	project_build() {
-		[ "$CMD_CARGO" ] || {
-			pout_status \
-				--error "Build failed" \
-				--dependency "cargo"
-			return 127
-		}
+		check_dependencies cargo || return $?
 		cargo build --release
 		cargo install --path "$PRJ_ROOT"
 	}

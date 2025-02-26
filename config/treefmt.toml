@@ -6,6 +6,7 @@ excludes = [
   "result/*",
   "*.lock",
   "**/*justfile",
+  "LICENSE",
 ]
 
 [formatter.mdformat]
@@ -31,6 +32,7 @@ includes = [
   "*.js",
   "*.json",
   "*.json5",
+  "*.jsonc",
   "*.jsx",
   "*.md",
   "*.mdx",
