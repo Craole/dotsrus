@@ -26,6 +26,7 @@
       toPath
       ;
 
+    configPath = toString "${./config}";
     pathOf = {
       base ? ./.,
       direction ? "both",
@@ -102,7 +103,7 @@
         "both"
       ]
       || throw "Invalid direction: must be 'up' or 'down'";
-      # If direction is not specified, search in both directions
+      #@ If direction is not specified, search in both directions
         if direction == "both"
         then let
           downSearch = search basePath dirBelow;
@@ -115,7 +116,7 @@
 
     initPath = pathOf {items = "init-project.sh";};
     binPath = dirOf initPath;
-    configPath = let
+    configPathDerived = let
       byConfig = pathOf {
         items = ["config" ".config"];
       };
@@ -222,14 +223,16 @@
           ];
 
           shellHook = ''
-            printf "Init Path:" ${toString initPath}
+            set -eu
+            . ${initPath}
           '';
         };
       }
     );
   };
 }
+# printf "Init Path:" ${toString initPath}
 # . ${initPath}
+# printf "   Bin: %s\n "${binPath}"
 
             # printf "Config: %s\n "${configPath}"
-            # printf "   Bin: %s\n "${binPath}"
