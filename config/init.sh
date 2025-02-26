@@ -369,9 +369,7 @@ script_components() {
 				# val_margin=2
 				shift
 				name="$1"
-				# Safe variable reference check
-				varname="CMD_$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')"
-				eval "[ -n \"\${$varname+x}\" ]" && eval "val=\"\${$varname}\""
+				eval "val=\"\$CMD_$(printf "%s" "$name" | tr '[:lower:]' '[:upper:]')\""
 				if [ -n "${val-}" ]; then
 					icon="$ICON_SUCCESS"
 				else
@@ -1039,7 +1037,9 @@ projects_components() {
 	project_update() {
 		[ "$CMD_NIX" ] && nix flake update
 		[ "$CMD_CARGO" ] && cargo update
-		if [ "$CMD_GEET" ]; then
+
+
+		if [ "${CMD_GEET+x}" ]; then
 			geet --push "$@"
 		else
 			project_git "$@"
