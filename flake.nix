@@ -113,7 +113,7 @@
           else upSearch
         else search basePath getNext;
 
-    initPath = pathOf {items = "init-project.sh";};
+    initPath = pathOf {items = ["init.sh" "init-project.sh"];};
     binPath = dirOf initPath;
     configPath = let
       byConfig = pathOf {
@@ -219,7 +219,3 @@
     );
   };
 }
-# printf "Init Path:" ${toString initPath}
-# . ${initPath}
-# printf "   Bin: %s\n "${binPath}"
-# printf "Config: %s\n "${configPath}"
