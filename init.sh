@@ -2,7 +2,6 @@
 
 # set -eu
 main() {
-  echo Hello
   #@ Initialize the script
   initialize_defaults
   # initialize_core_utils

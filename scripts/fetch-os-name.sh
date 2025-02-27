@@ -174,6 +174,7 @@ process_info() {
     get_via_python ||
     exit_code=1
 
+  info="$(printf "%s" "${info}" | awk '{print $1}')"
   present_info "${info:-${dud}}"
 }
 
