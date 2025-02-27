@@ -36,7 +36,7 @@ impl Config {
             Ok(Config {
                 path_entries: Vec::new(),
                 config_path,
-                default_excludes: exclude::default().into_iter().map(String::from).collect(),
+                default_excludes: exclude::default().into_iter().collect(),
             })
         } else {
             let content = fs::read_to_string(&config_path)?;

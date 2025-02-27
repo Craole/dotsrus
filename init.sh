@@ -36,6 +36,7 @@ initialize_defaults() {
     exit 1
   }
 
+  PRJ_NAME_PRETTY="Dots R Us"
   PRJ_BIN="${PRJ_ROOT}/scripts"
   PRJ_CONF="${PRJ_ROOT}/.config"
   PRJ_DOCS="${PRJ_ROOT}/documentation"
@@ -43,7 +44,7 @@ initialize_defaults() {
   PRJ_README="${PRJ_ROOT}/README"
   PRJ_LICENSE="${PRJ_ROOT}/LICENSE"
   PRJ_NAME="$(
-    printf '%s' "${PRJ_ROOT##*/}" |
+    printf '%s' "${PRJ_NAME_PRETTY:-"${PRJ_ROOT##*/}"}" |
       tr '[:upper:]' '[:lower:]' |
       sed '
           s/[^[:alnum:]]/_/g
@@ -452,7 +453,10 @@ get_root_path() {
   fi
 
   #@ Return the root directory only if it's absolute
-  [ "${root_dir}" = "." ] || printf "%s" "${root_dir}"
+  [ "${root_dir}" = "." ] && return 1
+
+  #@ Return the root directory
+  printf "%s" "${root_dir}"
 }
 
 initiliaze_bin() {
@@ -465,7 +469,9 @@ initiliaze_bin() {
 
     #@ Ensure the directory exists
     [ -z "$bin" ] && continue
-    mkdir -p "${bin}"
+
+    #@ Make the directory executable
+    [ -d "$bin" ] && chmod -R 755 "$bin" >/dev/null 2>&1
 
     #@ Handle first entry without colon
     if [ -z "$NEW_PATH" ]; then
