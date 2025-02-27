@@ -28,7 +28,9 @@ script_components() {
     color_mode="auto" #? 0: none, 1|auto: ansi/tput
     icon_mode="auto"  #? 0: none, 1: ascii, 2: unicode, 3: emoji
 
-    PRJ_ROOT=$(get_root_path)
+    PRJ_ROOT="$(get_root_path)"
+    PRJ_BIN="${PRJ_ROOT}/scripts"
+    PRJ_CONF="${PRJ_ROOT}/config"
     PRJ_DEPENDENCIES="
       bat
       cargo
@@ -59,26 +61,27 @@ script_components() {
   }
 
   get_root_path() {
+    #@ Initialize variables
+    root_dir="${PWD}"
 
     #@ Find the parent directory is a Git repository
     if git rev-parse --show-toplevel >/dev/null 2>&1; then
-      git rev-parse --show-toplevel
+      root_dir="$(git rev-parse --show-toplevel)"
     else
       #@ Check if the current directory or any parent directory is a flake or rust root
-      dir="${PWD}"
       while [ "${dir}" != "/" ]; do
         if [ -f "${dir}/flake.nix" ] || [ -f "${dir}/Cargo.toml" ]; then
-          printf "%s" "${dir}"
-          return 0
+          root_dir="${dir}"
+          break
         fi
         dir=$(dirname "${dir}")
       done
     fi
 
-    #@ Throw anerror and return
-    printf "Failed to determine the project root (Niether a Git repository or flake/rust directory)" >&2
-    return 2
+    #@ Return the root directory
+    [ -d "${root_dir}" ] && printf "%s" "${root_dir}"
   }
+
   initialize_dependencies() {
     for dep in ${PRJ_DEPENDENCIES}; do
       #@ Define	the variable name in uppercase
@@ -94,7 +97,7 @@ script_components() {
   }
 
   initialize_bin_utils() {
-    bin_path="$HOME/.local/bin"
+    bin_path="${PRJ_BIN}"
     mkdir -p "${bin_path}"
 
     if [ -z "${PATH}" ]; then
@@ -1062,52 +1065,52 @@ projects_components() {
     }
 
     define_aliases() {
-      [ "$CMD_BAT" ] && alias cat='bat --style=plain'
-      [ "$CMD_CARGO" ] && alias A='cargo add'
+      [ -n "${CMD_BAT}" ] && alias cat='bat --style=plain'
+      [ -n "$CMD_CARGO" ] && alias A='cargo add'
       alias B='project_build'
-      [ "$CMD_CARGO" ] && alias C='project_clean'
-      [ "$CMD_CARGO" ] && alias D='cargo remove'
+      [ -n "$CMD_CARGO" ] && alias C='project_clean'
+      [ -n "$CMD_CARGO" ] && alias D='cargo remove'
 
       alias E='editor_wrapper'
 
       alias F='project_format'
 
-      [ "$CMD_CARGO" ] && alias G='cargo generate'
+      [ -n "$CMD_CARGO" ] && alias G='cargo generate'
 
-      [ "$CMD_HX" ] && alias H='helix_wrapper' #? Change to help
+      [ -n "$CMD_HX" ] && alias H='helix_wrapper' #? Change to help
 
       alias I='project_init'
 
-      [ "$CMD_JUST" ] && alias J='just'
+      [ -n "$CMD_JUST" ] && alias J='just'
       alias K='exit'
-      if [ "$CMD_EZA" ]; then
+      if [ -n "$CMD_EZA" ]; then
         alias L='eza --long --almost-all --group-directories-first --color=always --icons=always --git --git-ignore --time-style relative --total-size --smart-group'
         alias Lt='L --tree'
-      elif [ "$CMD_LSD" ]; then
+      elif [ -n "$CMD_LSD" ]; then
         alias L='lsd --long --almost-all --group-directories-first --color=always --git --date=relative --versionsort --total-size'
         alias Lt='L --tree'
       else
         alias L='ls -lAhF --color=always --group-directories-first'
         alias Lt='L --recursive'
       fi
-      [ "$CMD_PLS" ] && alias Lp='pls --det perm --det oct --det user --det group --det mtime --det git --det size --header false'
+      [ -n "$CMD_PLS" ] && alias Lp='pls --det perm --det oct --det user --det group --det mtime --det git --det size --header false'
       alias M='mkdir --parents'
-      [ "$CMD_CARGO" ] && alias N='cargo new'
+      [ -n "$CMD_CARGO" ] && alias N='cargo new'
       alias O='size_check'
       alias P='project_info'
-      [ "$CMD_CARGO" ] && alias Q='cargo watch --quiet --clear --exec "run --quiet --"'
-      [ "$CMD_CARGO" ] && alias R='cargo run --release'
-      [ "$CMD_CARGO" ] && alias S='cargo search'
+      [ -n "$CMD_CARGO" ] && alias Q='cargo watch --quiet --clear --exec "run --quiet --"'
+      [ -n "$CMD_CARGO" ] && alias R='cargo run --release'
+      [ -n "$CMD_CARGO" ] && alias S='cargo search'
       alias T='create_file'
       alias U='project_update'
       alias V='editor_wrapper --visual'
-      [ "$CMD_CARGO" ] && alias W='cargo watch --quiet --clear --exec "run --"'
+      [ -n "$CMD_CARGO" ] && alias W='cargo watch --quiet --clear --exec "run --"'
       alias X='project_clean --reset'
 
       if [ -f "$PRJ_INFO" ]; then
-        if [ "${READER+x}" ]; then
+        if [ -n "${READER+x}" ]; then
           reader="$READER"
-        elif [ "$CMD_BAT" ]; then
+        elif [ -n "$CMD_BAT" ]; then
           reader='bat'
         else
           reader='cat'

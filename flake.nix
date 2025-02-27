@@ -26,7 +26,6 @@
       toPath
       ;
 
-    configPath = toString "${./config}";
     pathOf = {
       base ? ./.,
       direction ? "both",
@@ -116,7 +115,7 @@
 
     initPath = pathOf {items = "init-project.sh";};
     binPath = dirOf initPath;
-    configPathDerived = let
+    configPath = let
       byConfig = pathOf {
         items = ["config" ".config"];
       };
@@ -188,42 +187,31 @@
             zoxide
 
             #| Formatters
-            # alejandra
-            # mdformat
-            # shfmt
-            # taplo
-            # yamlfmt
-
             treefmt2
             actionlint #? GitHub Actions
-            asmfmt #? Go
             alejandra #? Nix
-            shellcheck #? Shellscript
-            shfmt #? Shell
-            yamlfmt #? YAML
-            stylua #? Lua
-            # fish #? fish and fish_indent
+            asmfmt #? Go
+            # biome               #? Json, JavaScript and TypeScript
+            eclint #? EditorConfig linter written in Go
+            # fish                #? fish and fish_indent
             keep-sorted #? Sorter
             leptosfmt #? leptos rs
-            rufo #? Ruby
-            sqlfluff #? SQL
-            tex-fmt #? TeX
-            tenv #? Terraform
-            toml-sort #? TOML
-            taplo #? TOML
-            typos #? Typo correction
-            typst #? typesetting system to replace LaTeX
-            typstyle #? typst style
-            typstfmt #? typst formatter
             markdownlint-cli2 #? Markdown
-            editorconfig-checker #? EditorConfig
-            eclint #? EditorConfig linter written in Go
-            # biome #? Json, JavaScript and TypeScript
-            editorconfig-checker
+            shellcheck #? Shellscript
+            shfmt #? Shell
+            sqlfluff #? SQL
+            stylua #? Lua
+            taplo #? TOML
+            tenv #? Terraform
+            tex-fmt #? TeX
+            typst #? typesetting system to replace LaTeX
+            typstfmt #? typst formatter
+            typstyle #? typst style
+            typos #? Typo correction
+            yamlfmt #? YAML
           ];
 
           shellHook = ''
-            set -eu
             . ${initPath}
           '';
         };
@@ -234,5 +222,4 @@
 # printf "Init Path:" ${toString initPath}
 # . ${initPath}
 # printf "   Bin: %s\n "${binPath}"
-
-            # printf "Config: %s\n "${configPath}"
+# printf "Config: %s\n "${configPath}"
