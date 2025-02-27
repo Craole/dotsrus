@@ -114,7 +114,15 @@
         else search basePath getNext;
 
     initPath = pathOf {items = ["init.sh" "init-project.sh"];};
-    binPath = dirOf initPath;
+    binPath = let
+      byDir = pathOf {
+        items = ["bin" "scripts" ".bin" ".scripts" "function"];
+      };
+    in
+      if byDir != null
+      then toString byDir
+      else toString initPath;
+
     configPath = let
       byConfig = pathOf {
         items = ["config" ".config"];
@@ -212,7 +220,28 @@
           ];
 
           shellHook = ''
-            . ${initPath}
+            # . ${initPath}
+            # Search upward for init scripts
+              find_init() {
+                current_dir="$PWD"
+                while [ "$current_dir" != "/" ]; do
+                  for candidate in init.sh init-project.sh; do
+                    if [ -f "$current_dir/$candidate" ]; then
+                      echo "$current_dir/$candidate"
+                      return 0
+                    fi
+                  done
+                  current_dir=$(dirname "$current_dir")
+                done
+                return 1
+              }
+
+              INIT_PATH=$(find_init)
+              if [ -n "$INIT_PATH" ]; then
+                ls -la "$INIT_PATH"
+              else
+                echo "No init script found in directory hierarchy" >&2
+              fi
           '';
         };
       }

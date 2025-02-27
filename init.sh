@@ -2,8 +2,8 @@
 
 # set -eu
 main() {
+  echo Hello
   #@ Initialize the script
-  # get_root_path
   initialize_defaults
   # initialize_core_utils
 
